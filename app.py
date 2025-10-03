@@ -3,24 +3,15 @@ from flask_cors import CORS
 import joblib
 import pandas as pd
 
+# Uygulama başlat
 app = Flask(__name__)
 CORS(app)
 
-# 🔹 Eğitimde kullandığın model ve scaler dosyalarını yükle
+# Model ve scaler yükle
 model = joblib.load("model.pkl")
 scaler = joblib.load("scaler.pkl")
 
-# 🔹 Dataset’teki feature kolonları (PerformanceChange hariç)
-FEATURE_COLUMNS = [
-    "StudyHours",
-    "BookPages",
-    "Steps",
-    "SleepHours",
-    "ScreenTime",
-    "SelfScore"
-]
-
-@app.route("/")
+@app.route("/", methods=["GET"])
 def home():
     return jsonify({"msg": "SelfStock API is running.", "ok": True})
 
@@ -28,20 +19,18 @@ def home():
 def predict():
     try:
         data = request.get_json()
+        features = data.get("features")
 
-        # features JSON’dan alınır → DataFrame’e çevrilir
-        features = data["features"]
-        features_df = pd.DataFrame([features], columns=FEATURE_COLUMNS)
+        if not isinstance(features, dict):
+            return jsonify({"error": "Features must be provided as a dict"}), 400
 
-        # Ölçekleme
-        features_scaled = scaler.transform(features_df)
+        # DataFrame'e çevir (kolon isimleri korunur)
+        X = pd.DataFrame([features])
+        X_scaled = scaler.transform(X)
+        prediction = model.predict(X_scaled)[0]
 
-        # Tahmin
-        prediction = model.predict(features_scaled)[0]
+        return jsonify({"percentage": float(round(prediction, 2))})
 
-        return jsonify({
-            "percentage": round(float(prediction), 2)
-        })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
